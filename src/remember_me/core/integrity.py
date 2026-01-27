@@ -2,6 +2,9 @@ from typing import List, Optional, Set
 import xxhash
 
 class MerkleNode:
+    # ⚡ Bolt: Use __slots__ to reduce memory overhead for large history trees
+    __slots__ = ['hash', 'data', 'left', 'right']
+
     def __init__(self, hash_val: str, data: Optional[str] = None, left=None, right=None):
         self.hash = hash_val
         self.data = data

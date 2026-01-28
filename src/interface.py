@@ -257,11 +257,24 @@ if user_input:
             dummy_vec = [0.001] * 128 
             try:
                 st.session_state.os.ingest(user_input, dummy_vec)
+                
+                # --- RAG RETRIEVAL (Fix for Issue #1) ---
+                # Retrieve relevant context from QDMA
+                memories = st.session_state.os.recall(user_input)
+                if memories:
+                    context_str = "\n[RECALLED MEMORIES]:\n" + "\n".join([f"- {m}" for m in memories]) + "\n"
+                    # Visualize Retrieval
+                    st.toast(f"Brain Recalled {len(memories)} memories")
+                    final_prompt = f"{context_str}\n[USER]: {user_input}"
+                else:
+                    final_prompt = user_input
+
             except Exception as e:
-                st.warning(f"Memory Ingestion Glitch: {e}")
+                st.warning(f"Memory Glitch: {e}")
+                final_prompt = user_input
 
             # CALL THE LLM
-            response = st.session_state.brain.think(user_input)
+            response = st.session_state.brain.think(final_prompt)
             
     st.session_state.history.append(("AI", response))
     st.rerun()

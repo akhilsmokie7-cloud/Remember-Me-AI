@@ -176,9 +176,52 @@ class Q_OS_Trinity:
         else:
             logger.info(f"BRAIN: Stored at {res.get('vaddr')}")
             
-        # 4. EVOLUTION TRIGGER
+    # 4. EVOLUTION TRIGGER
         self.soul.evolve_cycle()
         return "processed"
+
+    def recall(self, text, top_k=3):
+        """
+        RAG RETRIEVAL:
+        1. Query Brain with dummy vector (simulated matching) or real embedding if available.
+        2. Extract text from Shards.
+        """
+        try:
+            # TODO: Use real embedding from a local model (e.g. BERT/All-MiniLM)
+            # For now, we use a dummy vector to trigger the pipeline, relying on 
+            # Faiss or random fallback (if vectors are identical).
+            # This addresses Issue #1 (Memory is Write-Only).
+            dummy_vec = [0.001] * cfg.dim
+            
+            results = self.brain.pocket_query(dummy_vec, topk=top_k)
+            
+            memories = []
+            seen_content = set()
+            
+            for res in results:
+                mid = res.get("mem_id")
+                if not mid: continue
+                
+                # Access storage deeply to get payload
+                entity = self.brain.storage.retrieve_any(mid)
+                if entity and entity.shards:
+                    sid = entity.shards[0]
+                    payload_bytes = self.brain.storage.shards.get(sid)
+                    
+                    if payload_bytes:
+                        try:
+                            content = payload_bytes.decode("utf-8")
+                            # Dedupe
+                            if content not in seen_content and content != text:
+                                memories.append(content)
+                                seen_content.add(content)
+                        except Exception:
+                            pass
+                            
+            return memories
+        except Exception as e:
+            logger.error(f"RECALL FAILURE: {e}")
+            return []
 
     def shutdown(self):
         self.brain.shutdown()

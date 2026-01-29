@@ -45,3 +45,11 @@
 ## 2025-10-27 - Memory Optimization for Integrity Chain
 **Learning:** `IntegrityChain` maintains an ever-growing list of `MerkleNode` objects for the session history. Standard Python objects use `__dict__` for attribute storage, consuming ~152 bytes per node. For long-running sessions with thousands of turns, this memory overhead becomes significant and causes cache misses.
 **Action:** Added `__slots__ = ['hash', 'data', 'left', 'right']` to `MerkleNode`. This reduces per-node memory to ~64 bytes (2.3x reduction) and speeds up node creation by ~20%.
+
+## 2025-10-28 - Parallel Tool Execution in SovereignAgent
+**Learning:** The `SovereignAgent` executed tools sequentially: Search -> Code -> Synthesis -> Image. Both "Synthesis" (LLM) and "Image Generation" (Diffusers) are high-latency, IO/GPU-bound operations (~2-5s each). Running them serially doubled the perceived latency for multimedia queries.
+**Action:** Implemented `concurrent.futures.ThreadPoolExecutor` in `SovereignAgent.run` to execute Image Generation in parallel with the Text Synthesis phase. This reduces total latency from `T_text + T_image` to `max(T_text, T_image)`, yielding a ~50% speedup for queries involving both modalities.
+
+## 2025-10-28 - Device-Aware CSNP Initialization
+**Learning:** `CSNPManager` initialized its `memory_bank` and `identity_state` using `torch.zeros(...)`, which defaults to CPU. However, `LocalEmbedder` often runs on CUDA. This mismatch caused either performance-degrading implicit transfers or runtime crashes during `update_state` (specifically in `torch.mm`).
+**Action:** Updated `CSNPManager.__init__` to inspect `self.embedder.device`. The memory buffers are now explicitly initialized on the same device as the embedder, ensuring zero-copy operations and preventing device mismatch errors.

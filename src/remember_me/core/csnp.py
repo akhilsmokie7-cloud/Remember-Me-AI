@@ -41,17 +41,20 @@ class CSNPManager:
         else:
             self.embedder = embedder
 
+        # ⚡ Bolt: Detect device from embedder to prevent implicit CPU<->GPU transfers
+        self.device = getattr(self.embedder, 'device', 'cpu')
+
         # The "Living State Vector" (LSV)
         # Represents the aggregate direction of the session
-        self.identity_state = torch.zeros(1, self.dim)
+        self.identity_state = torch.zeros(1, self.dim, device=self.device)
 
         # ⚡ Bolt: Zero-Allocation Buffer
         # We allocate limit + 1 to allow "Add then Compress" cycle without reallocation.
         self.capacity = self.context_limit + 1
-        self.memory_bank = torch.zeros(self.capacity, self.dim)
+        self.memory_bank = torch.zeros(self.capacity, self.dim, device=self.device)
 
         # ⚡ Bolt: Pre-computed norms for O(1) cost matrix updates
-        self.memory_norms = torch.zeros(self.capacity, 1)
+        self.memory_norms = torch.zeros(self.capacity, 1, device=self.device)
 
         self.size = 0 # Current number of active memories
 

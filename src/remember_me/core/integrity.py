@@ -46,23 +46,28 @@ class IntegrityChain:
             self._is_dirty = False
             return
 
-        layer = self.leaves
+        # ⚡ Bolt: Zero-Allocation Internal Nodes
+        # Instead of creating MerkleNode objects for every intermediate hash (which causes massive GC churn),
+        # we operate solely on hash strings. This reduces memory overhead significantly and improves speed.
+        layer = [node.hash for node in self.leaves]
+
         while len(layer) > 1:
             next_layer = []
-            for i in range(0, len(layer), 2):
+            count = len(layer)
+            for i in range(0, count, 2):
                 left = layer[i]
-                if i + 1 < len(layer):
+                if i + 1 < count:
                     right = layer[i+1]
                     # Hash(Left + Right)
-                    combined = self._hash(left.hash + right.hash)
-                    next_layer.append(MerkleNode(combined, left=left, right=right))
+                    combined = self._hash(left + right)
+                    next_layer.append(combined)
                 else:
                     # Duplicate last node to balance tree
-                    combined = self._hash(left.hash + left.hash)
-                    next_layer.append(MerkleNode(combined, left=left, right=left))
+                    combined = self._hash(left + left)
+                    next_layer.append(combined)
             layer = next_layer
 
-        self.root = layer[0]
+        self.root = MerkleNode(layer[0])
         self._is_dirty = False
 
     def get_root_hash(self) -> str:

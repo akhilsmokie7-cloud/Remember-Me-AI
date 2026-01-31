@@ -53,3 +53,11 @@
 ## 2025-10-28 - Device-Aware CSNP Initialization
 **Learning:** `CSNPManager` initialized its `memory_bank` and `identity_state` using `torch.zeros(...)`, which defaults to CPU. However, `LocalEmbedder` often runs on CUDA. This mismatch caused either performance-degrading implicit transfers or runtime crashes during `update_state` (specifically in `torch.mm`).
 **Action:** Updated `CSNPManager.__init__` to inspect `self.embedder.device`. The memory buffers are now explicitly initialized on the same device as the embedder, ensuring zero-copy operations and preventing device mismatch errors.
+
+## 2025-10-29 - ThreadPool Reuse in Agent
+**Learning:** `SovereignAgent` was creating a new `ThreadPoolExecutor` for every `run()` call involving image generation. While low overhead for single queries, this adds up in loops.
+**Action:** Moved `ThreadPoolExecutor` to `__init__` and added a `shutdown` method. This allows thread reuse.
+
+## 2025-10-29 - Cross-Device State Loading
+**Learning:** `CSNPManager.load_state` blindly trusted the device of the saved tensors. If a state was saved on CPU but loaded on a machine with CUDA (where `embedder` is CUDA), the manager would degrade `memory_bank` to CPU to match the file, causing massive performance loss (implicit transfers) or crashes (if `identity_state` was on GPU).
+**Action:** Modified `load_state` to strictly cast all loaded tensors to `self.device` (determined by the embedder), ensuring hardware acceleration is preserved regardless of the save file's origin.

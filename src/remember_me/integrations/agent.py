@@ -39,6 +39,9 @@ class SovereignAgent:
         self.engine = engine
         self.tools = tools
 
+        # ⚡ Bolt: Persistent ThreadPool to reuse threads across requests
+        self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
         # Intent Patterns (Heuristic/Regex for speed & reliability on small models)
         # ⚡ Bolt: Combined regex for single-pass O(N) detection
         patterns = {
@@ -48,6 +51,10 @@ class SovereignAgent:
         }
         combined_regex = "|".join(f"(?P<{name}>{pattern})" for name, pattern in patterns.items())
         self.combined_pattern = re.compile(combined_regex, re.IGNORECASE)
+
+    def shutdown(self):
+        """Clean up resources."""
+        self._executor.shutdown(wait=False)
 
     def run(self, user_input: str, context_str: str) -> Dict[str, Any]:
         """
@@ -103,14 +110,12 @@ class SovereignAgent:
         # This reduces total latency from (Text + Image) to max(Text, Image)
         img_future = None
         img_path = "dream_output.png"
-        executor = None
 
         if "IMAGE" in detected_intents:
             print(f"🎨 Orchestrator: Visualizing (Parallel)...")
-            # We use ThreadPoolExecutor because these are IO-bound/GIL-releasing tasks (CUDA calls)
-            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            # We use persistent ThreadPoolExecutor (IO-bound/GIL-releasing tasks)
             img_prompt = user_input
-            img_future = executor.submit(self.tools.generate_image, img_prompt, img_path)
+            img_future = self._executor.submit(self.tools.generate_image, img_prompt, img_path)
 
         # Main Thread: Generate Text Response
         final_response = self.engine.generate_response(user_input, augmented_context)
@@ -118,7 +123,6 @@ class SovereignAgent:
         # Collect Image Result
         if img_future:
             res = img_future.result() # Wait for completion
-            executor.shutdown()
             artifacts.append({"type": "image", "path": img_path, "status": res})
             final_response += f"\n\n[Visual Generated: {res}]"
 

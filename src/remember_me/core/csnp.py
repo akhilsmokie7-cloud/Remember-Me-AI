@@ -339,7 +339,8 @@ class CSNPManager:
             print(f"⚠️ Warning: Dimension mismatch (Saved: {state_dict['config']['dim']}, Current: {self.dim}). This may cause errors.")
 
         # Restore Tensors
-        loaded_bank = state_dict["memory_bank"]
+        # ⚡ Bolt: Force loaded tensors to current device (e.g. GPU) instead of degrading to file device
+        loaded_bank = state_dict["memory_bank"].to(self.device)
         loaded_size = loaded_bank.shape[0]
 
         # ⚡ Bolt: Handle capacity expansion if needed
@@ -348,41 +349,39 @@ class CSNPManager:
             # We do NOT change self.context_limit. The next update_state()
             # will naturally prune the excess memories down to the limit.
             self.capacity = loaded_size + 1
-            # Ensure we match device/dtype of the loaded state to prevent mismatches
+            # Ensure we match device/dtype of the loaded state (but on self.device)
             self.memory_bank = torch.zeros(
                 self.capacity,
                 self.dim,
-                device=loaded_bank.device,
+                device=self.device,
                 dtype=loaded_bank.dtype
             )
             # Also expand norms buffer
             self.memory_norms = torch.zeros(
                 self.capacity,
                 1,
-                device=loaded_bank.device,
+                device=self.device,
                 dtype=loaded_bank.dtype
             )
 
         self.size = loaded_size
-        # Ensure target buffer is on correct device if we didn't expand
-        if self.memory_bank.device != loaded_bank.device:
-            self.memory_bank = self.memory_bank.to(loaded_bank.device)
-            self.memory_norms = self.memory_norms.to(loaded_bank.device)
+        # Ensure self.memory_bank is on self.device (it should be, but just in case)
+        if self.memory_bank.device != self.device:
+             self.memory_bank = self.memory_bank.to(self.device)
+             self.memory_norms = self.memory_norms.to(self.device)
 
         self.memory_bank[:self.size] = loaded_bank
 
         # Handle older save files (backwards compatibility)
         if "memory_norms" in state_dict:
-            loaded_norms = state_dict["memory_norms"]
-            if self.memory_norms.device != loaded_norms.device:
-                loaded_norms = loaded_norms.to(self.memory_norms.device)
+            loaded_norms = state_dict["memory_norms"].to(self.device)
             self.memory_norms[:self.size] = loaded_norms
         else:
             # Recompute norms if missing
             print("⚡ Bolt: Recomputing norms for legacy state...")
             self.memory_norms[:self.size] = (self.memory_bank[:self.size]**2).sum(1).view(-1, 1)
 
-        self.identity_state = state_dict["identity_state"]
+        self.identity_state = state_dict["identity_state"].to(self.device)
         self.text_buffer = state_dict["text_buffer"]
 
         # Rebuild Integrity Chain

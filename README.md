@@ -1,4 +1,4 @@
-# REMEMBER-ME (V2): THE SOVEREIGN STACK
+# REMEMBER-ME (V2): THE SOVEREIGN STACK AKHIL
 
 ### The End of Rented Cognition
 
@@ -155,4 +155,4 @@ Fork the repo. Build your own brain. Never pay for intelligence again.
 
 *Signed,*
 **The Sovereign Architect**
-*(Mohamad Al-Zawahreh)*
+*(AKHIL)
